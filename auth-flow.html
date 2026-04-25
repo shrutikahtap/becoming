@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Auth Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #f0f0f5;
+    --muted: #7a7a99;
+    --accent: #6c63ff;
+    --accent2: #a78bfa;
+    --accent-glow: rgba(108,99,255,0.25);
+    --success: #22d3a5;
+    --danger: #ff5f6d;
+    --warn: #f59e0b;
+    --font-display: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --radius: 14px;
+    --radius-sm: 8px;
+    --transition: 0.22s cubic-bezier(.4,0,.2,1);
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Ambient background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 20%, rgba(108,99,255,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 50% at 80% 80%, rgba(34,211,165,0.06) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Grid noise */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 460px;
+    padding: 1.5rem;
+  }
+
+  /* --- SCREENS --- */
+  .screen {
+    display: none;
+    animation: fadeUp 0.38s cubic-bezier(.4,0,.2,1) both;
+  }
+  .screen.active { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* --- LOGO MARK --- */
+  .logomark {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2rem;
+    box-shadow: 0 0 32px var(--accent-glow);
+  }
+  .logomark svg { width: 22px; height: 22px; }
+
+  /* --- CARD --- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem 2rem 2.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(108,99,255,0.6), transparent);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.35rem;
+    color: var(--text);
+  }
+  .subtitle {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 1.75rem;
+    line-height: 1.5;
+  }
+
+  /* --- FORM --- */
+  .field { margin-bottom: 1rem; }
+  label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.45rem;
+  }
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    padding: 0.75rem 1rem;
+    outline: none;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    -webkit-appearance: none;
+  }
+  input:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  input::placeholder { color: var(--muted); opacity: 0.6; }
+
+  /* password toggle */
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 2.75rem; }
+  .pw-eye {
+    position: absolute;
+    right: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 0;
+    line-height: 1;
+    transition: color var(--transition);
+  }
+  .pw-eye:hover { color: var(--text); }
+
+  /* --- BUTTONS --- */
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    letter-spacing: 0.01em;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(108,99,255,0.35);
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(108,99,255,0.45);
+  }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  .btn-secondary:hover { border-color: rgba(255,255,255,0.25); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid rgba(108,99,255,0.3);
+  }
+  .btn-ghost:hover { background: rgba(108,99,255,0.08); }
+
+  /* --- DIVIDER --- */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1.25rem 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* --- CHECKBOX --- */
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+  .check-row input[type="checkbox"] {
+    width: 16px; height: 16px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .check-row a { color: var(--accent2); text-decoration: none; }
+  .check-row a:hover { text-decoration: underline; }
+
+  /* --- TOKEN DISPLAY --- */
+  .token-box {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 1rem 1rem 1rem 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--success);
+    word-break: break-all;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    position: relative;
+    letter-spacing: 0.02em;
+  }
+  .token-label {
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.5rem;
+  }
+
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 0.83rem;
+    padding: 0.55rem 1rem;
+    cursor: pointer;
+    transition: all var(--transition);
+    margin-bottom: 1.25rem;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent2); }
+  .copy-btn.copied { border-color: var(--success); color: var(--success); }
+
+  /* --- STEP INDICATOR --- */
+  .steps {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 1.75rem;
+  }
+  .step-dot {
+    height: 3px;
+    border-radius: 99px;
+    background: var(--border2);
+    flex: 1;
+    transition: background var(--transition);
+  }
+  .step-dot.done { background: var(--accent); }
+  .step-dot.active {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  /* --- NOTICE BOX --- */
+  .notice {
+    background: rgba(34,211,165,0.07);
+    border: 1px solid rgba(34,211,165,0.2);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem 1rem;
+    font-size: 0.82rem;
+    color: var(--success);
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    margin-bottom: 1.25rem;
+    line-height: 1.5;
+  }
+  .notice.warn {
+    background: rgba(245,158,11,0.07);
+    border-color: rgba(245,158,11,0.2);
+    color: var(--warn);
+  }
+
+  /* --- TEXTAREA PASTE --- */
+  textarea {
+    resize: none;
+    height: 110px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: var(--success);
+  }
+
+  /* --- WELCOME SCREEN --- */
+  .welcome-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, rgba(34,211,165,0.15), rgba(108,99,255,0.15));
+    border: 1px solid rgba(34,211,165,0.25);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.6rem;
+  }
+
+  .pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(34,211,165,0.1);
+    border: 1px solid rgba(34,211,165,0.25);
+    border-radius: 99px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--success);
+    margin-bottom: 1rem;
+    font-weight: 500;
+  }
+  .pill-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--success);
+    border-radius: 50%;
+    display: block;
+  }
+
+  .placeholder-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 1.5rem;
+  }
+  .ph-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    cursor: pointer;
+    transition: border-color var(--transition), transform var(--transition);
+  }
+  .ph-card:hover { border-color: rgba(108,99,255,0.4); transform: translateY(-2px); }
+  .ph-card-icon { font-size: 1.2rem; margin-bottom: 0.4rem; }
+  .ph-card-title {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.2rem;
+  }
+  .ph-card-sub { font-size: 0.73rem; color: var(--muted); }
+
+  /* --- LINKS --- */
+  .link-row {
+    text-align: center;
+    margin-top: 1.25rem;
+    font-size: 0.83rem;
+    color: var(--muted);
+  }
+  .link-row a {
+    color: var(--accent2);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .link-row a:hover { text-decoration: underline; }
+
+  /* --- SPINNER --- */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  /* --- ERROR --- */
+  .error-msg {
+    font-size: 0.8rem;
+    color: var(--danger);
+    margin-top: 0.4rem;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ====== SCREEN 1: LOGIN ====== -->
+  <div class="screen active" id="screen-login">
+    <div class="logomark">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L4 6v6c0 4.4 3.4 8.5 8 9.5 4.6-1 8-5.1 8-9.5V6L12 2z" fill="rgba(255,255,255,0.9)"/>
+        <path d="M9 12l2 2 4-4" stroke="#6c63ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="steps">
+      <div class="step-dot active"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+    </div>
+
+    <div class="card">
+      <h1>Sign in</h1>
+      <p class="subtitle">Enter your credentials to get your access token.</p>
+
+      <div class="field">
+        <label>Email address</label>
+        <input type="email" id="email-input" placeholder="you@company.com" autocomplete="email" />
+        <div class="error-msg" id="email-err">Please enter a valid email.</div>
+      </div>
+
+      <div class="field">
+        <label>Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="pw-input" placeholder="••••••••" autocomplete="current-password" />
+          <button class="pw-eye" id="pw-toggle" aria-label="Toggle password visibility" onclick="togglePw()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+        <div class="error-msg" id="pw-err">Password must be at least 8 characters.</div>
+      </div>
+
+      <div class="check-row">
+        <input type="checkbox" id="remember" />
+        <label for="remember" style="text-transform:none;letter-spacing:0;font-size:0.875rem;color:var(--muted);margin-bottom:0;">
+          Remember me on this device
+        </label>
+      </div>
+
+      <button class="btn btn-primary" id="login-btn" onclick="handleLogin()">
+        <span id="login-label">Continue</span>
+      </button>
+
+      <div class="divider">or</div>
+
+      <button class="btn btn-secondary" onclick="handleSSO()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Sign in with SSO
+      </button>
+    </div>
+
+    <div class="link-row">
+      Don't have an account? <a href="#">Request access</a>
+    </div>
+  </div>
+
+
+  <!-- ====== SCREEN 2: TOKEN REDIRECT ====== -->
+  <div class="screen" id="screen-token">
+    <div class="logomark">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="11" width="18" height="11" rx="2" fill="rgba(255,255,255,0.9)"/>
+        <path d="M7 11V7a5 5 0 0110 0v4" stroke="rgba(255,255,255,0.9)" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="12" cy="16" r="1.5" fill="#6c63ff"/>
+      </svg>
+    </div>
+
+    <div class="steps">
+      <div class="step-dot done"></div>
+      <div class="step-dot active"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+    </div>
+
+    <div class="card">
+      <h1>Your token</h1>
+      <p class="subtitle">Authentication successful. Copy your access token — it won't be shown again.</p>
+
+      <div class="notice">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Store this token securely. Treat it like a password — anyone who has it can access your account.
+      </div>
+
+      <div class="token-label">Access token</div>
+      <div class="token-box" id="token-display">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3JfMDFIWU1aWjNRTTQyR1BLOEpIWDNFR0I2Tk0iLCJpYXQiOjE3MDkwNDIxMzIsImV4cCI6MTcwOTY0NjkzMiwic2NvcGVzIjpbInJlYWQiLCJ3cml0ZSJdfQ.K7v2pXy9mQsRnJ4wBdTfLzEcUaOiHgYkVlCxNePqA8M</div>
+
+      <button class="copy-btn" id="copy-btn" onclick="copyToken()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        <span id="copy-label">Copy to clipboard</span>
+      </button>
+
+      <button class="btn btn-primary" onclick="goTo('screen-paste')">
+        I've copied my token →
+      </button>
+
+      <div class="notice warn" style="margin-top:1rem;margin-bottom:0;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        This page will expire in <strong style="color:var(--warn)">10:00</strong>. After that you'll need to log in again.
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ====== SCREEN 3: PASTE TOKEN ====== -->
+  <div class="screen" id="screen-paste">
+    <div class="logomark">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" fill="rgba(255,255,255,0.9)"/>
+        <rect x="8" y="2" width="8" height="4" rx="1" fill="rgba(255,255,255,0.9)"/>
+        <path d="M9 14l2 2 4-4" stroke="#6c63ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="steps">
+      <div class="step-dot done"></div>
+      <div class="step-dot done"></div>
+      <div class="step-dot active"></div>
+      <div class="step-dot"></div>
+    </div>
+
+    <div class="card">
+      <h1>Paste token</h1>
+      <p class="subtitle">Paste the access token you just copied to verify and activate your session.</p>
+
+      <div class="field">
+        <label>Access token</label>
+        <textarea id="token-input" placeholder="Paste your token here…" oninput="validateToken()"></textarea>
+        <div class="error-msg" id="token-err">Token appears to be invalid. Double-check what you copied.</div>
+      </div>
+
+      <button class="btn btn-primary" id="verify-btn" onclick="handleVerify()" disabled>
+        <span id="verify-label">Verify token</span>
+      </button>
+
+      <div class="link-row" style="margin-top:1rem;">
+        <a href="#" onclick="goTo('screen-token');return false;">← Back to get a new token</a>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ====== SCREEN 4: WELCOME ====== -->
+  <div class="screen" id="screen-welcome">
+    <div class="steps">
+      <div class="step-dot done"></div>
+      <div class="step-dot done"></div>
+      <div class="step-dot done"></div>
+      <div class="step-dot active"></div>
+    </div>
+
+    <div class="card">
+      <div class="pill-badge">Authenticated</div>
+      <div class="welcome-icon">✦</div>
+      <h1>Welcome back</h1>
+      <p class="subtitle">You're all set. Your session is active and your token is verified. Here's where you can go next.</p>
+
+      <div class="placeholder-grid">
+        <div class="ph-card" onclick="sendTo('Dashboard')">
+          <div class="ph-card-icon">⬡</div>
+          <div class="ph-card-title">Dashboard</div>
+          <div class="ph-card-sub">Overview & metrics</div>
+        </div>
+        <div class="ph-card" onclick="sendTo('API Explorer')">
+          <div class="ph-card-icon">◈</div>
+          <div class="ph-card-title">API Explorer</div>
+          <div class="ph-card-sub">Test endpoints</div>
+        </div>
+        <div class="ph-card" onclick="sendTo('Settings')">
+          <div class="ph-card-icon">◎</div>
+          <div class="ph-card-title">Settings</div>
+          <div class="ph-card-sub">Manage account</div>
+        </div>
+        <div class="ph-card" onclick="sendTo('Docs')">
+          <div class="ph-card-icon">◇</div>
+          <div class="ph-card-title">Docs</div>
+          <div class="ph-card-sub">API reference</div>
+        </div>
+      </div>
+
+      <button class="btn btn-ghost" style="margin-top:1.25rem;" onclick="handleLogout()">
+        Sign out
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const MOCK_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3JfMDFIWU1aWjNRTTQyR1BLOEpIWDNFR0I2Tk0iLCJpYXQiOjE3MDkwNDIxMzIsImV4cCI6MTcwOTY0NjkzMiwic2NvcGVzIjpbInJlYWQiLCJ3cml0ZSJdfQ.K7v2pXy9mQsRnJ4wBdTfLzEcUaOiHgYkVlCxNePqA8M';
+
+  function goTo(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(id);
+    if (el) { el.classList.add('active'); }
+  }
+
+  // ── LOGIN ──
+  function handleLogin() {
+    const email = document.getElementById('email-input').value.trim();
+    const pw = document.getElementById('pw-input').value;
+    let ok = true;
+
+    document.getElementById('email-err').classList.remove('show');
+    document.getElementById('pw-err').classList.remove('show');
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      document.getElementById('email-err').classList.add('show');
+      ok = false;
+    }
+    if (pw.length < 8) {
+      document.getElementById('pw-err').classList.add('show');
+      ok = false;
+    }
+    if (!ok) return;
+
+    const btn = document.getElementById('login-btn');
+    const label = document.getElementById('login-label');
+    btn.disabled = true;
+    label.innerHTML = '<div class="spinner"></div>';
+
+    setTimeout(() => {
+      btn.disabled = false;
+      label.textContent = 'Continue';
+      goTo('screen-token');
+    }, 1400);
+  }
+
+  function handleSSO() {
+    goTo('screen-token');
+  }
+
+  function togglePw() {
+    const inp = document.getElementById('pw-input');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+
+  // ── TOKEN ──
+  function copyToken() {
+    const token = document.getElementById('token-display').textContent.trim();
+    navigator.clipboard.writeText(token).catch(() => {});
+    const btn = document.getElementById('copy-btn');
+    const label = document.getElementById('copy-label');
+    btn.classList.add('copied');
+    label.textContent = 'Copied!';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      label.textContent = 'Copy to clipboard';
+    }, 2200);
+  }
+
+  // Countdown timer on token screen
+  let timerInterval;
+  function startTimer() {
+    let secs = 600;
+    clearInterval(timerInterval);
+    function tick() {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      const nodes = document.querySelectorAll('#screen-token strong');
+      nodes.forEach(n => n.textContent = m + ':' + String(s).padStart(2,'0'));
+      if (secs <= 0) clearInterval(timerInterval);
+      secs--;
+    }
+    tick();
+    timerInterval = setInterval(tick, 1000);
+  }
+
+  // ── PASTE & VERIFY ──
+  function validateToken() {
+    const val = document.getElementById('token-input').value.trim();
+    document.getElementById('verify-btn').disabled = val.length < 20;
+    document.getElementById('token-err').classList.remove('show');
+  }
+
+  function handleVerify() {
+    const val = document.getElementById('token-input').value.trim();
+    const btn = document.getElementById('verify-btn');
+    const label = document.getElementById('verify-label');
+
+    // Basic JWT structure check
+    const parts = val.split('.');
+    if (parts.length !== 3) {
+      document.getElementById('token-err').classList.add('show');
+      return;
+    }
+
+    btn.disabled = true;
+    label.innerHTML = '<div class="spinner"></div>';
+
+    setTimeout(() => {
+      btn.disabled = false;
+      label.textContent = 'Verify token';
+      goTo('screen-welcome');
+    }, 1200);
+  }
+
+  // ── WELCOME ──
+  function sendTo(place) {
+    alert(`Navigating to ${place}… (placeholder — wire up your router here)`);
+  }
+
+  function handleLogout() {
+    document.getElementById('email-input').value = '';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('token-input').value = '';
+    goTo('screen-login');
+  }
+
+  // Enter key support
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    if (document.getElementById('screen-login').classList.contains('active')) handleLogin();
+    if (document.getElementById('screen-paste').classList.contains('active')) {
+      const btn = document.getElementById('verify-btn');
+      if (!btn.disabled) handleVerify();
+    }
+  });
+
+  // Start timer when token screen becomes visible
+  const observer = new MutationObserver(() => {
+    if (document.getElementById('screen-token').classList.contains('active')) startTimer();
+  });
+  observer.observe(document.getElementById('screen-token'), { attributes: true, attributeFilter: ['class'] });
+</script>
+</body>
+</html>
